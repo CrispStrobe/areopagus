@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ page.title }} - {{ site.title }}</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { 
+      font-family: Georgia, serif; 
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 20px; 
+      line-height: 1.6; 
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin: 20px 0; 
+    }
+    th, td { 
+      border: 1px solid #ddd; 
+      padding: 12px; 
+      text-align: left; 
+      vertical-align: top; 
+    }
+    th { 
+      background-color: #f5f5f5; 
+    }
+    h1, h2 { 
+      color: #333; 
+    }
+    .latin { 
+      font-style: italic; 
+    }
+  </style>
+</head>
+<body>
+  <h1><a href="{{ site.baseurl }}/">{{ site.title }}</a></h1>
+  {{ content }}
+</body>
+</html>

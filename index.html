@@ -1,0 +1,7 @@
+---
+layout: default
+---
+<h2>Translations</h2>
+{% for post in site.posts %}
+  <p><a href="{{ post.url | relative_url }}">{{ post.title }}</a></p>
+{% endfor %}
