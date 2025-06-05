@@ -1,7 +1,12 @@
 ---
 layout: default
 ---
-<h2>Translations</h2>
+<h1>Areopagus</h1>
+<p><em>Translations of classical texts, etc</em></p>
+
+<p>Use the search box above to find specific texts, concepts, or terms across all translations.</p>
+
+<h2>Search Translations</h2>
 {% for post in site.posts %}
-  <p><a href="{{ post.url | relative_url }}">{{ post.title }}</a></p>
+  <p><a href="{{ post.url | relative_url }}">{{ post.title }}</a> - <em>{{ post.date | date: "%B %d, %Y" }}</em></p>
 {% endfor %}

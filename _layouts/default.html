@@ -19,23 +19,191 @@
     }
     th, td { 
       border: 1px solid #ddd; 
-      padding: 12px; 
+      padding: 8px; 
       text-align: left; 
-      vertical-align: top; 
     }
     th { 
-      background-color: #f5f5f5; 
+      background-color: #f2f2f2; 
     }
-    h1, h2 { 
-      color: #333; 
+    
+    /* Search Styles */
+    .search-container {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
     }
-    .latin { 
-      font-style: italic; 
+    
+    .search-box {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    
+    .search-box:focus {
+      border-color: #2c5aa0;
+      outline: none;
+    }
+    
+    .search-results {
+      margin-top: 20px;
+    }
+    
+    .search-result {
+      padding: 15px;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 10px;
+      background: white;
+      border-radius: 4px;
+    }
+    
+    .search-result:last-child {
+      border-bottom: none;
+    }
+    
+    .search-result h3 {
+      margin: 0 0 5px 0;
+      color: #333;
+    }
+    
+    .search-result p {
+      margin: 5px 0;
+      color: #666;
+    }
+    
+    .search-result a {
+      color: #2c5aa0;
+      text-decoration: none;
+    }
+    
+    .search-result a:hover {
+      text-decoration: underline;
+    }
+    
+    .highlight {
+      background-color: #ffeb3b;
+      font-weight: bold;
+      padding: 1px 2px;
+      border-radius: 2px;
+    }
+    
+    .no-results {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 20px;
+    }
+    
+    .search-info {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
-  <h1><a href="{{ site.baseurl }}/">{{ site.title }}</a></h1>
+  <!-- Search Section -->
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Search translations... (try 'circle', 'wisdom', 'Cusanus')" class="search-box">
+    <div id="searchInfo" class="search-info" style="display: none;"></div>
+    <div id="searchResults" class="search-results"></div>
+  </div>
+
+  <!-- Main Content -->
   {{ content }}
+
+  <!-- Search JavaScript -->
+  <script>
+    let searchData = [];
+    let isDataLoaded = false;
+
+    // Load search data
+    fetch('{{ "/search.json" | relative_url }}')
+      .then(response => response.json())
+      .then(data => {
+        searchData = data;
+        isDataLoaded = true;
+        console.log('Search data loaded:', data.length, 'posts');
+      })
+      .catch(error => {
+        console.error('Error loading search data:', error);
+      });
+
+    // Search functionality
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+      const resultsDiv = document.getElementById('searchResults');
+      const infoDiv = document.getElementById('searchInfo');
+      
+      if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        infoDiv.style.display = 'none';
+        return;
+      }
+      
+      if (!isDataLoaded) {
+        resultsDiv.innerHTML = '<div class="no-results">Loading search data...</div>';
+        infoDiv.style.display = 'none';
+        return;
+      }
+      
+      // Perform search
+      const results = searchData.filter(post => {
+        return post.title.toLowerCase().includes(query) ||
+               post.content.toLowerCase().includes(query);
+      });
+      
+      // Display info
+      if (results.length > 0) {
+        infoDiv.innerHTML = `Found ${results.length} result${results.length === 1 ? '' : 's'} for "${query}"`;
+        infoDiv.style.display = 'block';
+      } else {
+        infoDiv.style.display = 'none';
+      }
+      
+      if (results.length === 0) {
+        resultsDiv.innerHTML = '<div class="no-results">No results found. Try searching for "Cusanus", "circle", "wisdom", or "divine".</div>';
+        return;
+      }
+      
+      // Display results
+      resultsDiv.innerHTML = results.map(post => {
+        const highlightedTitle = highlightText(post.title, query);
+        const highlightedExcerpt = highlightText(post.excerpt, query);
+        
+        return `
+          <div class="search-result">
+            <h3><a href="${post.url}">${highlightedTitle}</a></h3>
+            <p><em>${post.date}</em></p>
+            <p>${highlightedExcerpt}</p>
+          </div>
+        `;
+      }).join('');
+    });
+
+    function highlightText(text, query) {
+      if (!text || !query) return text;
+      
+      // Split query into individual terms for better highlighting
+      const terms = query.split(' ').filter(term => term.length > 0);
+      let highlightedText = text;
+      
+      terms.forEach(term => {
+        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+        highlightedText = highlightedText.replace(regex, '<span class="highlight">$1</span>');
+      });
+      
+      return highlightedText;
+    }
+    
+    function escapeRegex(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  </script>
 </body>
 </html>
