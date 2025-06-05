@@ -3,8 +3,19 @@ layout: default
 title: Home
 ---
 <h1>Areopagus</h1>
-<p><em>Translations of classical and medieval texts</em></p>
-<p>Click "Search Translations" below to find specific texts, concepts, or terms across all translations.</p>
+<p><em>Classical texts with translations</em></p>
+<p>Click "Search Translations" to find specific texts, concepts, or terms across all texts and translations.</p>
+
+<!-- Search Section -->
+<div class="search-container">
+  <button class="search-toggle" onclick="toggleSearch()">🔍 Search Translations</button>
+  <div class="search-content" id="searchContent">
+    <input type="text" id="searchInput" placeholder="Search translations... (try 'circle', 'wisdom', 'Cusanus')" class="search-box">
+    <div id="searchInfo" class="search-info" style="display: none;"></div>
+    <div id="searchResults" class="search-results"></div>
+  </div>
+</div>
+
 <h2>Search Translations</h2>
 {% for post in site.posts %}
 <p><a href="{{ post.url | relative_url }}">{{ post.title }}</a> - <em>{{ post.date | date: "%B %d, %Y" }}</em></p>
