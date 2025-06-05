@@ -35,6 +35,29 @@
       border: 1px solid #e0e0e0;
     }
     
+    .search-toggle {
+      background: #2c5aa0;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    
+    .search-toggle:hover {
+      background: #1e3f73;
+    }
+    
+    .search-content {
+      display: none;
+    }
+    
+    .search-content.active {
+      display: block;
+    }
+    
     .search-box {
       width: 100%;
       padding: 12px;
@@ -57,9 +80,10 @@
     .search-result {
       padding: 15px;
       border-bottom: 1px solid #eee;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       background: white;
       border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     
     .search-result:last-child {
@@ -67,13 +91,23 @@
     }
     
     .search-result h3 {
-      margin: 0 0 5px 0;
+      margin: 0 0 8px 0;
       color: #333;
     }
     
-    .search-result p {
+    .search-result .date {
       margin: 5px 0;
       color: #666;
+      font-size: 14px;
+    }
+    
+    .search-result .context {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f8f8;
+      border-left: 3px solid #2c5aa0;
+      font-style: italic;
+      color: #555;
     }
     
     .search-result a {
@@ -104,23 +138,61 @@
       color: #666;
       margin-bottom: 10px;
     }
+    
+    .jump-to-text {
+      font-size: 12px;
+      color: #2c5aa0;
+      margin-top: 5px;
+    }
+    
+    /* Highlighting in actual content */
+    .search-highlight {
+      background-color: #ffeb3b;
+      padding: 2px 4px;
+      border-radius: 2px;
+      animation: flash 2s ease-in-out;
+    }
+    
+    @keyframes flash {
+      0%, 100% { background-color: #ffeb3b; }
+      50% { background-color: #ffc107; }
+    }
   </style>
 </head>
 <body>
   <!-- Search Section -->
   <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search translations... (try 'circle', 'wisdom', 'Cusanus')" class="search-box">
-    <div id="searchInfo" class="search-info" style="display: none;"></div>
-    <div id="searchResults" class="search-results"></div>
+    <button class="search-toggle" onclick="toggleSearch()">🔍 Search Translations</button>
+    <div class="search-content" id="searchContent">
+      <input type="text" id="searchInput" placeholder="Search translations... (try 'circle', 'wisdom', 'Cusanus')" class="search-box">
+      <div id="searchInfo" class="search-info" style="display: none;"></div>
+      <div id="searchResults" class="search-results"></div>
+    </div>
   </div>
 
   <!-- Main Content -->
   {{ content }}
 
-  <!-- Search JavaScript -->
+  <!-- Enhanced Search JavaScript -->
   <script>
     let searchData = [];
     let isDataLoaded = false;
+    let currentSearchTerm = '';
+
+    // Toggle search visibility
+    function toggleSearch() {
+      const content = document.getElementById('searchContent');
+      const button = document.querySelector('.search-toggle');
+      
+      if (content.classList.contains('active')) {
+        content.classList.remove('active');
+        button.textContent = '🔍 Search Translations';
+      } else {
+        content.classList.add('active');
+        button.textContent = '🔍 Hide Search';
+        document.getElementById('searchInput').focus();
+      }
+    }
 
     // Load search data
     fetch('{{ "/search.json" | relative_url }}')
@@ -134,11 +206,13 @@
         console.error('Error loading search data:', error);
       });
 
-    // Search functionality
+    // Enhanced search functionality with context
     document.getElementById('searchInput').addEventListener('input', function(e) {
       const query = e.target.value.toLowerCase().trim();
       const resultsDiv = document.getElementById('searchResults');
       const infoDiv = document.getElementById('searchInfo');
+      
+      currentSearchTerm = query;
       
       if (query.length < 2) {
         resultsDiv.innerHTML = '';
@@ -152,11 +226,28 @@
         return;
       }
       
-      // Perform search
-      const results = searchData.filter(post => {
-        return post.title.toLowerCase().includes(query) ||
-               post.content.toLowerCase().includes(query);
-      });
+      // Enhanced search with context extraction
+      const results = searchData.map(post => {
+        let score = 0;
+        const titleLower = post.title.toLowerCase();
+        const contentLower = post.content.toLowerCase();
+        
+        // Title matches score higher
+        if (titleLower.includes(query)) {
+          score += 10;
+        }
+        
+        // Content matches
+        if (contentLower.includes(query)) {
+          score += 1;
+        }
+        
+        // Extract context around matches
+        const context = extractContext(post.content, query);
+        
+        return { ...post, score, context };
+      }).filter(post => post.score > 0)
+        .sort((a, b) => b.score - a.score);
       
       // Display info
       if (results.length > 0) {
@@ -167,30 +258,50 @@
       }
       
       if (results.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No results found. Try searching for "Cusanus", "circle", "wisdom", or "divine".</div>';
+        resultsDiv.innerHTML = '<div class="no-results">No results found. Try searching for "Cusanus", "circle", "wisdom", "divine", "ratio", or "forma".</div>';
         return;
       }
       
-      // Display results
+      // Display results with context
       resultsDiv.innerHTML = results.map(post => {
         const highlightedTitle = highlightText(post.title, query);
-        const highlightedExcerpt = highlightText(post.excerpt, query);
+        const searchUrl = `${post.url}?search=${encodeURIComponent(query)}`;
         
         return `
           <div class="search-result">
-            <h3><a href="${post.url}">${highlightedTitle}</a></h3>
-            <p><em>${post.date}</em></p>
-            <p>${highlightedExcerpt}</p>
+            <h3><a href="${searchUrl}">${highlightedTitle}</a></h3>
+            <div class="date">${post.date}</div>
+            ${post.context ? `<div class="context">${post.context}</div>` : ''}
+            <div class="jump-to-text">Click to view full text with highlighted search terms</div>
           </div>
         `;
       }).join('');
     });
 
+    // Extract context around search matches
+    function extractContext(content, query, contextLength = 150) {
+      const contentLower = content.toLowerCase();
+      const queryLower = query.toLowerCase();
+      const index = contentLower.indexOf(queryLower);
+      
+      if (index === -1) return null;
+      
+      const start = Math.max(0, index - contextLength);
+      const end = Math.min(content.length, index + query.length + contextLength);
+      
+      let context = content.substring(start, end);
+      
+      // Add ellipsis if we're not at the beginning/end
+      if (start > 0) context = '...' + context;
+      if (end < content.length) context = context + '...';
+      
+      return highlightText(context, query);
+    }
+
     function highlightText(text, query) {
       if (!text || !query) return text;
       
-      // Split query into individual terms for better highlighting
-      const terms = query.split(' ').filter(term => term.length > 0);
+      const terms = query.split(' ').filter(term => term.length > 1);
       let highlightedText = text;
       
       terms.forEach(term => {
@@ -203,6 +314,53 @@
     
     function escapeRegex(string) {
       return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Highlight search terms when coming from search results
+    window.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const searchTerm = urlParams.get('search');
+      
+      if (searchTerm) {
+        highlightInContent(searchTerm);
+        // Scroll to first occurrence
+        setTimeout(() => {
+          const firstHighlight = document.querySelector('.search-highlight');
+          if (firstHighlight) {
+            firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+    });
+
+    function highlightInContent(searchTerm) {
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+
+      const textNodes = [];
+      let node;
+      while (node = walker.nextNode()) {
+        if (node.nodeValue.toLowerCase().includes(searchTerm.toLowerCase())) {
+          textNodes.push(node);
+        }
+      }
+
+      textNodes.forEach(textNode => {
+        const parent = textNode.parentNode;
+        const text = textNode.nodeValue;
+        const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+        
+        if (regex.test(text)) {
+          const highlightedHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
+          const wrapper = document.createElement('span');
+          wrapper.innerHTML = highlightedHTML;
+          parent.replaceChild(wrapper, textNode);
+        }
+      });
     }
   </script>
 </body>
