@@ -153,26 +153,85 @@
       animation: flash 2s ease-in-out;
     }
     
+    .search-highlight.current {
+      background-color: #ff9800;
+      box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+    }
+    
     @keyframes flash {
       0%, 100% { background-color: #ffeb3b; }
       50% { background-color: #ffc107; }
     }
+    
+    /* Navigation controls */
+    .search-navigation {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      border: 1px solid #ddd;
+      z-index: 1000;
+      display: none;
+    }
+    
+    .search-navigation.show {
+      display: block;
+    }
+    
+    .nav-button {
+      background: #2c5aa0;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      margin: 0 2px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .nav-button:hover {
+      background: #1e3f73;
+    }
+    
+    .nav-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .nav-info {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 <body>
+  <!-- Search Navigation Controls (hidden by default) -->
+  <div class="search-navigation" id="searchNavigation">
+    <div class="nav-info" id="navInfo"></div>
+    <button class="nav-button" id="prevBtn" onclick="navigateHighlights(-1)">◀ Previous</button>
+    <button class="nav-button" id="nextBtn" onclick="navigateHighlights(1)">Next ▶</button>
+    <button class="nav-button" onclick="closeNavigation()">✕ Close</button>
+  </div>
+
   <!-- Main Content -->
   {{ content }}
 
   <!-- Enhanced Search JavaScript -->
   <script>
-    let searchData = [];
-    let isDataLoaded = false;
-    let currentSearchTerm = '';
+    var searchData = [];
+    var isDataLoaded = false;
+    var currentSearchTerm = '';
+    var highlights = [];
+    var currentHighlightIndex = 0;
 
     // Toggle search visibility
     function toggleSearch() {
-      const content = document.getElementById('searchContent');
-      const button = document.querySelector('.search-toggle');
+      var content = document.getElementById('searchContent');
+      var button = document.querySelector('.search-toggle');
       
       if (content && content.classList.contains('active')) {
         content.classList.remove('active');
@@ -184,26 +243,85 @@
       }
     }
 
+    // Navigate between highlights
+    function navigateHighlights(direction) {
+      if (highlights.length === 0) return;
+      
+      // Remove current highlighting
+      if (highlights[currentHighlightIndex]) {
+        highlights[currentHighlightIndex].classList.remove('current');
+      }
+      
+      // Update index
+      currentHighlightIndex += direction;
+      if (currentHighlightIndex >= highlights.length) {
+        currentHighlightIndex = 0;
+      } else if (currentHighlightIndex < 0) {
+        currentHighlightIndex = highlights.length - 1;
+      }
+      
+      // Highlight current and scroll to it
+      var currentHighlight = highlights[currentHighlightIndex];
+      if (currentHighlight) {
+        currentHighlight.classList.add('current');
+        currentHighlight.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Update navigation info
+        updateNavigationInfo();
+      }
+    }
+    
+    function updateNavigationInfo() {
+      var navInfo = document.getElementById('navInfo');
+      if (navInfo && highlights.length > 0) {
+        navInfo.textContent = (currentHighlightIndex + 1) + ' of ' + highlights.length + ' matches';
+      }
+      
+      // Update button states
+      var prevBtn = document.getElementById('prevBtn');
+      var nextBtn = document.getElementById('nextBtn');
+      
+      if (prevBtn && nextBtn) {
+        prevBtn.disabled = highlights.length <= 1;
+        nextBtn.disabled = highlights.length <= 1;
+      }
+    }
+    
+    function closeNavigation() {
+      var nav = document.getElementById('searchNavigation');
+      if (nav) {
+        nav.classList.remove('show');
+      }
+      
+      // Remove all current highlighting
+      for (var i = 0; i < highlights.length; i++) {
+        highlights[i].classList.remove('current');
+      }
+    }
+
     // Load search data
     fetch('{{ "/search.json" | relative_url }}')
-      .then(response => response.json())
-      .then(data => {
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
         searchData = data;
         isDataLoaded = true;
         console.log('Search data loaded:', data.length, 'posts');
       })
-      .catch(error => {
+      .catch(function(error) {
         console.error('Error loading search data:', error);
       });
 
     // Enhanced search functionality with context
     document.addEventListener('DOMContentLoaded', function() {
-      const searchInput = document.getElementById('searchInput');
+      var searchInput = document.getElementById('searchInput');
       if (searchInput) {
         searchInput.addEventListener('input', function(e) {
-          const query = e.target.value.toLowerCase().trim();
-          const resultsDiv = document.getElementById('searchResults');
-          const infoDiv = document.getElementById('searchInfo');
+          var query = e.target.value.toLowerCase().trim();
+          var resultsDiv = document.getElementById('searchResults');
+          var infoDiv = document.getElementById('searchInfo');
           
           currentSearchTerm = query;
           
@@ -220,31 +338,47 @@
           }
           
           // Enhanced search with context extraction
-          const results = searchData.map(post => {
-            let score = 0;
-            const titleLower = post.title.toLowerCase();
-            const contentLower = post.content.toLowerCase();
+          var results = searchData.map(function(post) {
+            var score = 0;
+            var titleLower = post.title.toLowerCase();
+            var contentLower = post.content.toLowerCase();
             
             // Title matches score higher
-            if (titleLower.includes(query)) {
+            if (titleLower.indexOf(query) !== -1) {
               score += 10;
             }
             
             // Content matches
-            if (contentLower.includes(query)) {
+            if (contentLower.indexOf(query) !== -1) {
               score += 1;
             }
             
-            // Extract context around matches
-            const context = extractContext(post.content, query);
+            // Count total matches for display
+            var regex = new RegExp(escapeRegex(query), 'gi');
+            var matches = (contentLower.match(regex) || []).length;
             
-            return { ...post, score, context };
-          }).filter(post => post.score > 0)
-            .sort((a, b) => b.score - a.score);
+            // Extract context around matches
+            var context = extractContext(post.content, query);
+            
+            return { 
+              title: post.title,
+              url: post.url,
+              date: post.date,
+              content: post.content,
+              excerpt: post.excerpt,
+              score: score, 
+              context: context, 
+              matches: matches 
+            };
+          }).filter(function(post) { 
+            return post.score > 0; 
+          }).sort(function(a, b) { 
+            return b.score - a.score; 
+          });
           
           // Display info
           if (results.length > 0) {
-            infoDiv.innerHTML = `Found ${results.length} result${results.length === 1 ? '' : 's'} for "${query}"`;
+            infoDiv.innerHTML = 'Found ' + results.length + ' result' + (results.length === 1 ? '' : 's') + ' for "' + query + '"';
             infoDiv.style.display = 'block';
           } else {
             infoDiv.style.display = 'none';
@@ -255,51 +389,64 @@
             return;
           }
           
-          // Display results with context
-          resultsDiv.innerHTML = results.map(post => {
-            const highlightedTitle = highlightText(post.title, query);
-            const searchUrl = `${post.url}?search=${encodeURIComponent(query)}`;
+          // Display results with context and match count
+          var resultHtml = '';
+          for (var i = 0; i < results.length; i++) {
+            var post = results[i];
+            var highlightedTitle = highlightText(post.title, query);
+            var searchUrl = post.url + '?search=' + encodeURIComponent(query);
+            var matchText = post.matches > 1 ? ' (' + post.matches + ' matches)' : '';
             
-            return `
-              <div class="search-result">
-                <h3><a href="${searchUrl}">${highlightedTitle}</a></h3>
-                <div class="date">${post.date}</div>
-                ${post.context ? `<div class="context">${post.context}</div>` : ''}
-                <div class="jump-to-text">Click to view full text with highlighted search terms</div>
-              </div>
-            `;
-          }).join('');
+            resultHtml += '<div class="search-result">' +
+              '<h3><a href="' + searchUrl + '">' + highlightedTitle + '</a></h3>' +
+              '<div class="date">' + post.date + matchText + '</div>' +
+              (post.context ? '<div class="context">' + post.context + '</div>' : '') +
+              '<div class="jump-to-text">Click to view full text with highlighted search terms' + (post.matches > 1 ? ' and navigation controls' : '') + '</div>' +
+              '</div>';
+          }
+          resultsDiv.innerHTML = resultHtml;
         });
       }
 
       // Highlight search terms when coming from search results
-      const urlParams = new URLSearchParams(window.location.search);
-      const searchTerm = urlParams.get('search');
+      var urlParams = new URLSearchParams(window.location.search);
+      var searchTerm = urlParams.get('search');
       
       if (searchTerm) {
         highlightInContent(searchTerm);
+        // Show navigation if multiple matches
+        if (highlights.length > 1) {
+          var nav = document.getElementById('searchNavigation');
+          if (nav) {
+            nav.classList.add('show');
+            updateNavigationInfo();
+          }
+        }
         // Scroll to first occurrence
-        setTimeout(() => {
-          const firstHighlight = document.querySelector('.search-highlight');
-          if (firstHighlight) {
-            firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(function() {
+          if (highlights.length > 0) {
+            highlights[0].classList.add('current');
+            highlights[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            currentHighlightIndex = 0;
+            updateNavigationInfo();
           }
         }, 100);
       }
     });
 
     // Extract context around search matches
-    function extractContext(content, query, contextLength = 150) {
-      const contentLower = content.toLowerCase();
-      const queryLower = query.toLowerCase();
-      const index = contentLower.indexOf(queryLower);
+    function extractContext(content, query, contextLength) {
+      contextLength = contextLength || 150;
+      var contentLower = content.toLowerCase();
+      var queryLower = query.toLowerCase();
+      var index = contentLower.indexOf(queryLower);
       
       if (index === -1) return null;
       
-      const start = Math.max(0, index - contextLength);
-      const end = Math.min(content.length, index + query.length + contextLength);
+      var start = Math.max(0, index - contextLength);
+      var end = Math.min(content.length, index + query.length + contextLength);
       
-      let context = content.substring(start, end);
+      var context = content.substring(start, end);
       
       // Add ellipsis if we're not at the beginning/end
       if (start > 0) context = '...' + context;
@@ -311,13 +458,14 @@
     function highlightText(text, query) {
       if (!text || !query) return text;
       
-      const terms = query.split(' ').filter(term => term.length > 1);
-      let highlightedText = text;
+      var terms = query.split(' ').filter(function(term) { return term.length > 1; });
+      var highlightedText = text;
       
-      terms.forEach(term => {
-        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+      for (var i = 0; i < terms.length; i++) {
+        var term = terms[i];
+        var regex = new RegExp('(' + escapeRegex(term) + ')', 'gi');
         highlightedText = highlightedText.replace(regex, '<span class="highlight">$1</span>');
-      });
+      }
       
       return highlightedText;
     }
@@ -327,33 +475,45 @@
     }
 
     function highlightInContent(searchTerm) {
-      const walker = document.createTreeWalker(
+      // Clear previous highlights
+      highlights = [];
+      
+      var walker = document.createTreeWalker(
         document.body,
         NodeFilter.SHOW_TEXT,
         null,
         false
       );
 
-      const textNodes = [];
-      let node;
+      var textNodes = [];
+      var node;
       while (node = walker.nextNode()) {
-        if (node.nodeValue.toLowerCase().includes(searchTerm.toLowerCase())) {
+        if (node.nodeValue.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1) {
           textNodes.push(node);
         }
       }
 
-      textNodes.forEach(textNode => {
-        const parent = textNode.parentNode;
-        const text = textNode.nodeValue;
-        const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+      for (var i = 0; i < textNodes.length; i++) {
+        var textNode = textNodes[i];
+        var parent = textNode.parentNode;
+        var text = textNode.nodeValue;
+        var regex = new RegExp('(' + escapeRegex(searchTerm) + ')', 'gi');
         
         if (regex.test(text)) {
-          const highlightedHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
-          const wrapper = document.createElement('span');
+          var highlightedHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
+          var wrapper = document.createElement('span');
           wrapper.innerHTML = highlightedHTML;
           parent.replaceChild(wrapper, textNode);
+          
+          // Collect all highlight elements
+          var newHighlights = wrapper.querySelectorAll('.search-highlight');
+          for (var j = 0; j < newHighlights.length; j++) {
+            highlights.push(newHighlights[j]);
+          }
         }
-      });
+      }
+      
+      console.log('Found ' + highlights.length + ' highlights for "' + searchTerm + '"');
     }
   </script>
 </body>
